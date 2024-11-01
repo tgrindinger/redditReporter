@@ -2,9 +2,9 @@
 
 namespace DataAccess
 {
-    public interface IUsersRepository
+    public interface IUsersConsumer
     {
+        void Start(CancellationToken cancellationToken);
         IEnumerable<UserSummary> GetUserSummaries();
-        void UpdateUserSummary(UserSummary userSummary);
     }
 }

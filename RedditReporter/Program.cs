@@ -1,8 +1,9 @@
+using DataAccess;
 using Services;
 
 namespace RedditReporter
 {
-    public class Program
+    public static class Program
     {
         public static void Main(string[] args)
         {
@@ -19,7 +20,13 @@ namespace RedditReporter
 
             var app = builder.Build();
 
-            StartRedditMonitor(app.Services);
+            using (var redditTokenSource = new CancellationTokenSource())
+            using (var usersTokenSource = new CancellationTokenSource())
+            using (var postsTokenSource = new CancellationTokenSource())
+            {
+                StartRedditMonitor(app.Services, redditTokenSource.Token);
+                StartConsumers(app.Services, usersTokenSource.Token, postsTokenSource.Token);
+            }
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -32,7 +39,6 @@ namespace RedditReporter
 
             app.UseAuthorization();
 
-
             app.MapControllers();
 
             app.Run();
@@ -40,18 +46,35 @@ namespace RedditReporter
 
         private static void AddInternalDependencies(IServiceCollection services, IConfiguration configuration)
         {
-            DataAccess.DependencyBuilder.InitializeInMemoryDependencies(services);
-            Services.DependencyBuilder.InitializeRedditNetDependencies(services, configuration);
+            DataAccess.DependencyBuilder.InitializeDependencies(services);
+            Services.DependencyBuilder.InitializeDependencies(services, configuration);
         }
 
-        private static void StartRedditMonitor(IServiceProvider services)
+        private static void StartRedditMonitor(IServiceProvider services, CancellationToken stoppingToken)
         {
             var monitor = services.GetService<IRedditMonitor>();
             if (monitor == null)
             {
-                throw new ArgumentNullException(nameof(monitor), "service not initialized");
+                throw new TypeInitializationException(nameof(monitor), null);
             }
-            monitor.Start();
+            monitor.Start(stoppingToken);
+        }
+
+        private static void StartConsumers(IServiceProvider services, CancellationToken usersCancellationToken, CancellationToken postsCancellationToken)
+        {
+            var usersConsumer = services.GetService<IUsersConsumer>();
+            if (usersConsumer == null)
+            {
+                throw new TypeInitializationException(nameof(usersConsumer), null);
+            }
+            usersConsumer.Start(usersCancellationToken);
+
+            var postsConsumer = services.GetService<IPostsConsumer>();
+            if (postsConsumer == null)
+            {
+                throw new TypeInitializationException(nameof(postsConsumer), null);
+            }
+            postsConsumer.Start(postsCancellationToken);
         }
     }
 }

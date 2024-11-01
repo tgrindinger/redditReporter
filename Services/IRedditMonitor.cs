@@ -2,6 +2,6 @@
 {
     public interface IRedditMonitor
     {
-        void Start();
+        void Start(CancellationToken stoppingToken);
     }
 }

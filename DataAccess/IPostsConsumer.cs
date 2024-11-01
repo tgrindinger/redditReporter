@@ -2,9 +2,9 @@
 
 namespace DataAccess
 {
-    public interface IPostsRepository
+    public interface IPostsConsumer
     {
+        void Start(CancellationToken cancellationToken);
         IEnumerable<PostSummary> GetPostSummaries();
-        void UpdatePostSummary(PostSummary postSummary);
     }
 }

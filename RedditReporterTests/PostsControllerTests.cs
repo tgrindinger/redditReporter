@@ -1,8 +1,5 @@
 ﻿using FluentAssertions;
-using Microsoft.Extensions.Logging;
-using RedditReporter.Controllers;
-using DataAccess;
-using Contracts;
+using RedditReporterTests.Builders;
 
 namespace RedditReporterTests
 {
@@ -10,13 +7,12 @@ namespace RedditReporterTests
     public class PostsControllerTests
     {
         [TestMethod]
-        public void GivenThereAreNoPosts_WhenIRequestThePosts_TheResultIsEmpty()
+        public void GivenThereAreNoPosts_WhenIRequestThePosts_ThenIGetNoPosts()
         {
             // arrange
-            var logger = new LoggerFactory()
-                .CreateLogger<PostsController>();
-            var postsRepository = new MemoryPostsRepository();
-            var sut = new PostsController(logger, postsRepository);
+            var sut = new PostsControllerBuilder()
+                .IsFlushed().Result
+                .Build();
 
             // act
             var result = sut.GetTopPosts();
@@ -26,23 +22,40 @@ namespace RedditReporterTests
         }
 
         [TestMethod]
-        public void GivenThereArePosts_WhenIRequestThePosts_ThenIGetAListOfPostSummaries()
+        public void GivenThereIsAPost_WhenIRequestThePosts_ThenIGetTheCorrectPost()
         {
             // arrange
-            var logger = new LoggerFactory()
-                .CreateLogger<PostsController>();
-            var postsRepository = new MemoryPostsRepository();
-            var summary = new PostSummary(Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), 5);
-            postsRepository.UpdatePostSummary(summary);
-            var sut = new PostsController(logger, postsRepository);
+            var postSummary = DataGenerators.RandomPostSummary();
+            var sut = new PostsControllerBuilder()
+                .WithPost(postSummary).Result
+                .IsFlushed().Result
+                .Build();
 
             // act
             var result = sut.GetTopPosts();
 
             // assert
             result.Count().Should().Be(1);
-            result.First().Id.Should().Be(summary.Id);
-            result.First().Upvotes.Should().Be(summary.Upvotes);
+            result.First().Id.Should().Be(postSummary.Id);
+            result.First().Title.Should().Be(postSummary.Title);
+            result.First().Upvotes.Should().Be(postSummary.Upvotes);
+        }
+
+        [TestMethod]
+        public void GivenThereArePosts_WhenIRequestThePosts_ThenIGetTheCorrectPosts()
+        {
+            // arrange
+            var numPosts = 100000;
+            var sut = new PostsControllerBuilder()
+                .WithPosts(numPosts).Result
+                .IsFlushed(numPosts, 1000).Result
+                .Build();
+
+            // act
+            var result = sut.GetTopPosts();
+
+            // assert
+            result.Count().Should().Be(numPosts);
         }
     }
 }

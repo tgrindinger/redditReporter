@@ -6,23 +6,14 @@ namespace RedditReporter.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class UsersController : ControllerBase
+    public class UsersController(IUsersConsumer usersConsumer) : ControllerBase
     {
-        private readonly ILogger<UsersController> _logger;
-        private readonly IUsersRepository _usersRepository;
-
-        public UsersController(
-            ILogger<UsersController> logger,
-            IUsersRepository usersRepository)
-        {
-            _logger = logger;
-            _usersRepository = usersRepository;
-        }
+        private readonly IUsersConsumer _usersConsumer = usersConsumer;
 
         [HttpGet(Name = "GetTopUsers")]
         public IEnumerable<UserSummary> GetTopUsers()
         {
-            var userSummaries = _usersRepository.GetUserSummaries();
+            var userSummaries = _usersConsumer.GetUserSummaries();
             return userSummaries.ToArray();
         }
     }

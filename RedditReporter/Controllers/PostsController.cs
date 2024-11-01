@@ -6,23 +6,14 @@ namespace RedditReporter.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class PostsController : ControllerBase
+    public class PostsController(IPostsConsumer postsConsumer) : ControllerBase
     {
-        private readonly ILogger<PostsController> _logger;
-        private readonly IPostsRepository _postsRepository;
-
-        public PostsController(
-            ILogger<PostsController> logger,
-            IPostsRepository postsRepository)
-        {
-            _logger = logger;
-            _postsRepository = postsRepository;
-        }
+        private readonly IPostsConsumer _postsConsumer = postsConsumer;
 
         [HttpGet(Name = "GetTopPosts")]
         public IEnumerable<PostSummary> GetTopPosts()
         {
-            var postSummaries = _postsRepository.GetPostSummaries();
+            var postSummaries = _postsConsumer.GetPostSummaries();
             return postSummaries.ToArray();
         }
     }

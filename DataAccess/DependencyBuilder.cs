@@ -1,13 +1,29 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Contracts;
+using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Channels;
 
 namespace DataAccess
 {
-    public class DependencyBuilder
+    public static class DependencyBuilder
     {
-        public static void InitializeInMemoryDependencies(IServiceCollection services)
+        public static void InitializeDependencies(IServiceCollection services)
         {
-            services.AddSingleton<IPostsRepository, MemoryPostsRepository>();
-            services.AddSingleton<IUsersRepository, MemoryUsersRepository>();
+            services.AddSingleton(Channel.CreateUnbounded<PostSummary>(
+                new UnboundedChannelOptions
+                {
+                    SingleReader = false,
+                    SingleWriter = false
+                }));
+            services.AddSingleton(Channel.CreateUnbounded<UserSummary>(
+                new UnboundedChannelOptions
+                {
+                    SingleReader = false,
+                    SingleWriter = false
+                }));
+            services.AddSingleton<IPostsConsumer, ChannelPostsConsumer>();
+            services.AddSingleton<IPostsProducer, ChannelPostsProducer>();
+            services.AddSingleton<IUsersConsumer, ChannelUsersConsumer>();
+            services.AddSingleton<IUsersProducer, ChannelUsersProducer>();
         }
     }
 }

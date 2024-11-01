@@ -1,6 +1,4 @@
-﻿using Contracts;
-using DataAccess;
-using Microsoft.Extensions.Hosting;
+﻿using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Reddit;
 using Reddit.Controllers;
@@ -8,31 +6,20 @@ using Reddit.Controllers.EventArgs;
 
 namespace Services
 {
-    internal class RedditNetRedditMonitor : BackgroundService, IRedditMonitor
+    internal class RedditNetRedditMonitor(
+        ILogger<RedditNetRedditMonitor> logger,
+        PostsProcessor postsProcessor,
+        RedditAuth redditAuth,
+        RedditSettings redditSettings) : BackgroundService, IRedditMonitor
     {
-        private readonly ILogger<RedditNetRedditMonitor> _logger;
-        private readonly IPostsRepository _postsRepository;
-        private readonly IUsersRepository _usersRepository;
-        private readonly RedditAuth _redditAuth;
-        private readonly RedditSettings _redditSettings;
+        private readonly ILogger<RedditNetRedditMonitor> _logger = logger;
+        private readonly PostsProcessor _postsProcessor = postsProcessor;
+        private readonly RedditAuth _redditAuth = redditAuth;
+        private readonly RedditSettings _redditSettings = redditSettings;
 
-        public RedditNetRedditMonitor(
-            ILogger<RedditNetRedditMonitor> logger,
-            IPostsRepository postsRepository,
-            IUsersRepository usersRepository,
-            RedditAuth redditAuth,
-            RedditSettings redditSettings)
+        public void Start(CancellationToken stoppingToken)
         {
-            _logger = logger;
-            _postsRepository = postsRepository;
-            _usersRepository = usersRepository;
-            _redditAuth = redditAuth;
-            _redditSettings = redditSettings;
-        }
-
-        public void Start()
-        {
-            Task.Run(() => ExecuteAsync(new CancellationToken()));
+            Task.Run(() => ExecuteAsync(stoppingToken), stoppingToken);
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,13 +31,13 @@ namespace Services
                 OptionallySeedExistingPosts(sub);
                 sub.Posts.NewUpdated += C_NewPostsUpdated;
                 sub.Posts.TopUpdated += C_TopPostsUpdated;
-                _logger.Log(LogLevel.Information, "Monitoring {sub}", sub.Name);
+                _logger.Log(LogLevel.Information, "Monitoring {Sub}", sub.Name);
                 sub.Posts.MonitorTop(breakOnFailure: true);
                 sub.Posts.MonitorNew(breakOnFailure: true);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                _logger.Log(LogLevel.Error, "Unable to start monitor. Please check your credentials in appsettings.json.");
+                _logger.Log(LogLevel.Error, ex, "Unable to start monitor. Please check your credentials in appsettings.json.");
                 throw;
             }
             while (!stoppingToken.IsCancellationRequested)
@@ -64,12 +51,12 @@ namespace Services
             if (_redditSettings.SeedTopPosts)
             {
                 var topPosts = sub.Posts.GetTop();
-                RecordPostChanges(topPosts);
+                _postsProcessor.RecordPostChanges(topPosts);
             }
             if (_redditSettings.SeedNewPosts)
             {
                 var newPosts = sub.Posts.GetNew();
-                RecordUserChanges(newPosts);
+                _postsProcessor.RecordUserChanges(newPosts);
             }
         }
 
@@ -79,41 +66,19 @@ namespace Services
                 appId: _redditAuth.AppId,
                 refreshToken: _redditAuth.RefreshToken,
                 accessToken: _redditAuth.AccessToken);
-            _logger.Log(LogLevel.Information, "Client initialized: {reddit}", reddit);
+            _logger.Log(LogLevel.Information, "Client initialized: {Reddit}", reddit);
             var sub = reddit.Subreddit(_redditSettings.TrackedSub);
             return sub;
         }
 
         private void C_TopPostsUpdated(object? sender, PostsUpdateEventArgs e)
         {
-            _logger.Log(LogLevel.Information, "Top post updated: {added}", e.Added.Count);
-            RecordPostChanges(e.Added);
+            _postsProcessor.RecordPostChanges(e.Added);
         }
 
         private void C_NewPostsUpdated(object? sender, PostsUpdateEventArgs e)
         {
-            _logger.Log(LogLevel.Information, "Received new posts: {added}", e.Added.Count);
-            RecordUserChanges(e.Added);
-        }
-
-        private void RecordPostChanges(List<Post> topPosts)
-        {
-            var summaries = topPosts.Select(post => new PostSummary(post.Id, post.Title, post.UpVotes));
-            foreach (var summary in summaries)
-            {
-                _postsRepository.UpdatePostSummary(summary);
-                _logger.Log(LogLevel.Information, "Updated Post {title}: {upvotes}", summary.Title, summary.Upvotes);
-            }
-        }
-
-        private void RecordUserChanges(List<Post> newPosts)
-        {
-            var summaries = newPosts.Select(post => new UserSummary(post.Author, 1));
-            foreach (var summary in summaries)
-            {
-                _usersRepository.UpdateUserSummary(summary);
-                _logger.Log(LogLevel.Information, "Found new post by {author}", summary.Name);
-            }
+            _postsProcessor.RecordUserChanges(e.Added);
         }
     }
 }

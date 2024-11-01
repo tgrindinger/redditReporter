@@ -3,12 +3,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Services
 {
-    public class DependencyBuilder
+    public static class DependencyBuilder
     {
-        public static void InitializeRedditNetDependencies(IServiceCollection services, IConfiguration configuration)
+        public static void InitializeDependencies(IServiceCollection services, IConfiguration configuration)
         {
             InitializeRedditAuth(services, configuration);
             InitializeRedditSettings(services, configuration);
+            services.AddSingleton<PostsProcessor>();
             services.AddSingleton<IRedditMonitor, RedditNetRedditMonitor>();
         }
 
@@ -16,8 +17,8 @@ namespace Services
         {
             var settingsSection = configuration.GetSection("RedditSettings");
             var sub = RetrieveSetting("TrackedSub", settingsSection);
-            var seedTopPosts = RetrieveSetting("SeedTopPosts", settingsSection).ToLower() == "true";
-            var seedNewPosts = RetrieveSetting("SeedNewPosts", settingsSection).ToLower() == "true";
+            var seedTopPosts = RetrieveSetting("SeedTopPosts", settingsSection).Equals("true", StringComparison.CurrentCultureIgnoreCase);
+            var seedNewPosts = RetrieveSetting("SeedNewPosts", settingsSection).Equals("true", StringComparison.CurrentCultureIgnoreCase);
             services.AddSingleton(new RedditSettings(sub, seedTopPosts, seedNewPosts));
         }
 
